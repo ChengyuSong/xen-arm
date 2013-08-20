@@ -21,7 +21,11 @@
 static unsigned int __initdata opt_dom0_max_vcpus;
 integer_param("dom0_max_vcpus", opt_dom0_max_vcpus);
 
+#if defined(HACKED_IMAGE)
+#define DOM0_MEM_DEFAULT (0x40000000) /* 1GB */
+#else
 #define DOM0_MEM_DEFAULT 0x8000000 /* 128 MiB */
+#endif
 static u64 __initdata dom0_mem = DOM0_MEM_DEFAULT;
 
 static void __init parse_dom0_mem(const char *s)
@@ -549,16 +553,32 @@ int construct_dom0(struct domain *d)
     int rc, i, cpu;
 
     struct vcpu *v = d->vcpu[0];
-    struct cpu_user_regs *regs = &v->arch.cpu_info->guest_cpu_user_regs;
+    struct cpu_user_regs *regs; 
 
     /* Sanity! */
     BUG_ON(d->domain_id != 0);
     BUG_ON(d->vcpu[0] == NULL);
     BUG_ON(v->is_initialised);
 
+    regs = &v->arch.cpu_info->guest_cpu_user_regs;
+
     printk("*** LOADING DOMAIN 0 ***\n");
 
     d->max_pages = ~0U;
+
+#ifdef HACKED_IMAGE
+    // must save kernel out of dom0 space
+    {
+        paddr_t s = early_info.modules.module[1].start;
+        paddr_t size = early_info.modules.module[1].size;
+        paddr_t e = s + PAGE_ALIGN(early_info.modules.module[1].size);
+        kinfo.kernel_img = xmalloc_bytes(size+1);
+        copy_from_paddr(kinfo.kernel_img, s, size, DEV_SHARED);
+
+        printk("DEBUG %s %d, free at %#010llx-%#010llx\n", __func__, __LINE__, s, e);
+        init_domheap_pages(s, e);
+    }
+#endif
 
     rc = prepare_dtb(d, &kinfo);
     if ( rc < 0 )
@@ -582,7 +602,20 @@ int construct_dom0(struct domain *d)
     kernel_load(&kinfo);
     dtb_load(&kinfo);
 
-    discard_initial_modules();
+#ifdef HACKED_IMAGE
+    {
+        void *p = map_domain_page(0x40000);
+        uint32_t *q = p + 0x100;
+        /*for (int i = 0; i < 21; i++) {
+            printk("ATAG: %x\n", q[i]);
+        }*/
+        memmove(&q[13], &q[21], (11+0x8c+2) * sizeof(uint32_t));
+        unmap_domain_page(p);
+    }
+    xfree(kinfo.kernel_img);
+#endif
+
+    //discard_initial_modules();
 
     v->is_initialised = 1;
     clear_bit(_VPF_down, &v->pause_flags);

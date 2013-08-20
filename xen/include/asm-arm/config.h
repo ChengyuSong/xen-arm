@@ -141,6 +141,7 @@ extern unsigned long frametable_virt_end;
 #define watchdog_disable() ((void)0)
 #define watchdog_enable()  ((void)0)
 
+#define CONFIG_PAGEALLOC_MAX_ORDER 18
 #define HACKED_IMAGE
 //#define EARLY_RAMOOPS_ADDRESS 0x41f00000
 

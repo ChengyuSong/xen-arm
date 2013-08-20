@@ -90,6 +90,33 @@ static void kernel_zimage_load(struct kernel_info *info)
     paddr_t len = info->zimage.len;
     unsigned long offs;
 
+#ifdef HACKED_IMAGE
+    if (0)
+    {
+        // Set temporary guest traps
+        // with 0xe14fff7e which is hvc(0xfffc)
+        // a hyp panic!
+        /* p2m_populate_ram(d, 0x0, 0x1000-1); // done is construct_dom0() */
+        paddr_t ma = 0;
+        uint32_t *dst;
+
+        if (gvirt_to_maddr(0, &ma)) {
+            panic("Unable to map tranlate guest address\n");
+            return;
+        }
+        dst = map_domain_page(ma>>PAGE_SHIFT);
+        // for some reason, this is needed in order for the
+        // guest to start, probably something wrong on linux side
+        // replace 0xffffffff by:
+        dst[2] = 0xe14fff7c;
+        unmap_domain_page(dst);
+    }
+
+    if (info->kernel_img)
+        printk("Loading zImage from internal ptr to %"PRIpaddr"-%"PRIpaddr"\n",
+               load_addr, load_addr + len);
+    else
+#endif
     printk("Loading zImage from %"PRIpaddr" to %"PRIpaddr"-%"PRIpaddr"\n",
            paddr, load_addr, load_addr + len);
     for ( offs = 0; offs < len; )
@@ -110,6 +137,11 @@ static void kernel_zimage_load(struct kernel_info *info)
 
         dst = map_domain_page(ma>>PAGE_SHIFT);
 
+#ifdef HACKED_IMAGE
+        if (info->kernel_img)
+            memcpy(dst+s, info->kernel_img+offs, l);
+        else
+#endif
         copy_from_paddr(dst + s, paddr + offs, l, attr);
 
         unmap_domain_page(dst);
@@ -176,12 +208,18 @@ static int kernel_try_zimage32_prepare(struct kernel_info *info,
                                      paddr_t addr, paddr_t size)
 {
     uint32_t zimage[ZIMAGE32_HEADER_LEN/4];
-    uint32_t start, end;
+    uint32_t start, end, dtb_size;
+    uint32_t *dtb;
     struct minimal_dtb_header dtb_hdr;
 
     if ( size < ZIMAGE32_HEADER_LEN )
         return -EINVAL;
 
+#ifdef HACKED_IMAGE
+    if (info->kernel_img)
+        memcpy(zimage, info->kernel_img, sizeof(zimage));
+    else
+#endif
     copy_from_paddr(zimage, addr, sizeof(zimage), DEV_SHARED);
 
     if (zimage[ZIMAGE32_MAGIC_OFFSET/4] != ZIMAGE32_MAGIC)
@@ -196,6 +234,35 @@ static int kernel_try_zimage32_prepare(struct kernel_info *info,
     /*
      * Check for an appended DTB.
      */
+#ifdef HACKED_IMAGE
+    if (info->kernel_img) {
+
+        // Fix the image
+        dtb = (uint32_t*)(info->kernel_img + end - start);
+        while ((void*)dtb < info->kernel_img + size) {
+            if (be32_to_cpu(*dtb) == DTB_MAGIC) {
+                dtb_size = be32_to_cpu(*(dtb+1));
+                
+                printk("Locate dtb at 0x%p, size %d\n", dtb, dtb_size);
+
+                // relocate dtb to the end of the kernel, if necessary
+                if ((void*)dtb > info->kernel_img + end - start) {
+                    memmove(info->kernel_img + end - start,
+                            dtb, dtb_size); //XXX safe?
+                }
+
+                end += dtb_size;
+
+                if ( end > addr + size )
+                    return -EINVAL;
+
+                break;
+            }
+            ++dtb;
+        }
+    }
+    else
+#endif
     if ( addr + end - start + sizeof(dtb_hdr) <= size )
     {
         copy_from_paddr(&dtb_hdr, addr + end - start,

@@ -47,7 +47,9 @@ struct cpuinfo_arm __read_mostly boot_cpu_data;
 
 static __used void init_done(void)
 {
+#ifdef HACKED_IMAGE
     free_init_memory();
+#endif
     startup_cpu_idle_loop();
 }
 
@@ -323,7 +325,8 @@ static void __init setup_mm(unsigned long dtb_paddr, size_t dtb_size)
      * constraints.
      */
     heap_pages = (ram_size >> PAGE_SHIFT);
-    xenheap_pages = min(1ul << (30 - PAGE_SHIFT), heap_pages);
+    //xenheap_pages = min(1ul << (30 - PAGE_SHIFT), heap_pages);
+    xenheap_pages = min(256ul << (20 - PAGE_SHIFT), heap_pages);
 
     do
     {
@@ -418,6 +421,90 @@ void __init setup_cache(void)
     cacheline_bytes = 1U << (4 + (ccsid & 0x7));
 }
 
+#ifdef HACKED_IMAGE
+void debug_search_kernel(void)
+{
+#define ZIMAGE_MAGIC_OFFSET 0x24
+#define ZIMAGE_START_OFFSET 0x28
+#define ZIMAGE_END_OFFSET   0x2c
+#define ZIMAGE_HEADER_LEN   0x30
+
+#define ZIMAGE_MAGIC 0x016f2818
+
+#define DTB_MAGIC 0xd00dfeed
+    unsigned i;
+    unsigned long current_paddr;
+    unsigned long magic_addr = 0;
+#ifdef USE_APPENDED_DTB
+    unsigned long dtb_addr = 0;
+#endif
+    uint32_t *zimage = (void *)FIXMAP_ADDR(FIXMAP_MISC);
+    paddr_t start = 0, size = 0;
+    /* int nr_modules = early_info.modules.nr_mods; */
+
+    early_printk("where is charly (the zImage?)\n");
+    for (current_paddr = 0x40000000;
+         current_paddr < 0xc0000000;
+         current_paddr += PAGE_SIZE) {
+        set_fixmap(FIXMAP_MISC, current_paddr >> PAGE_SHIFT, DEV_SHARED);
+        //printk("0x%lx\n", current_paddr);
+        for (i = 0; i < PAGE_SIZE/4; i++) {
+            if (!magic_addr && zimage[i] == ZIMAGE_MAGIC) {
+                early_printk("found here: 0x%lx\n", current_paddr + i*4);
+                early_printk("  - start: 0x%x, end: 0x%x\n",
+                       zimage[i+1], zimage[i+2]);
+                if (zimage[i+1] == 0) {
+                    magic_addr = current_paddr + i*4;
+
+                    // Set new start & size as we found the kernel
+                    start = magic_addr - ZIMAGE_MAGIC_OFFSET;
+                    size = zimage[i+2] - zimage[i+1];
+
+                    // Restart from the end of zImage to locate the dtb
+                    current_paddr = ((start + size) & PAGE_MASK) - PAGE_SIZE;
+                    break;
+                }
+            }
+
+#ifdef USE_APPENDED_DTB
+            if (magic_addr && be32_to_cpu(zimage[i]) == DTB_MAGIC) {
+                dtb_addr = current_paddr + i*4;
+
+                printk("found dtb here: 0x%lx, size=0x%x, original=0x%x\n", dtb_addr, be32_to_cpu(zimage[i+1]), zimage[i+1]);
+
+                // Update size to include dtb
+                size = dtb_addr - start + be32_to_cpu(zimage[i+1]);
+                break;
+            }
+#endif
+
+        }
+        clear_fixmap(FIXMAP_MISC);
+#ifdef USE_APPENDED_DTB
+        if (dtb_addr)
+            break;
+#else
+        if (magic_addr)
+            break;
+#endif
+    }
+#ifdef USE_APPENDED_DTB
+    if (!dtb_addr)
+#else
+    if (!magic_addr)
+#endif
+    {
+        panic("Error searching for the dom0 kernel\n");
+    }
+
+    early_printk("search done.\n");
+    early_info.modules.module[1].start = start;
+    early_info.modules.module[1].size = size;
+    early_info.modules.module[1].cmdline[0] = 0;
+    early_info.modules.nr_mods = 1;
+}
+#endif
+
 /* C entry point for boot CPU */
 void __init start_xen(unsigned long boot_phys_offset,
                       unsigned long fdt_paddr,
@@ -436,6 +523,12 @@ void __init start_xen(unsigned long boot_phys_offset,
     device_tree_flattened = (void *)BOOT_MISC_VIRT_START
         + (fdt_paddr & ((1 << SECOND_SHIFT) - 1));
     fdt_size = device_tree_early_init(device_tree_flattened);
+
+#ifdef HACKED_IMAGE
+    if ( early_info.modules.nr_mods < 1 ) {
+        debug_search_kernel();
+    }
+#endif
 
     cpus = smp_get_max_cpus();
     cmdline_parse(device_tree_bootargs(device_tree_flattened));
