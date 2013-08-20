@@ -21,6 +21,7 @@
 #include <asm/page.h>
 #include <asm/processor-ca15.h>
 #include <asm/processor-ca7.h>
+#include <asm/platforms/exynos5.h>
 #include <asm/asm_defns.h>
 
 #define ZIMAGE_MAGIC_NUMBER 0x016f2818
@@ -50,6 +51,11 @@
 #else /* EARLY_PRINTK */
 #define PRINT(s)
 #endif /* !EARLY_PRINTK */
+
+#define REBOOT \
+        ldr r3, =0x10040400 ;\
+        mov r4, #1 ;\
+        str r4, [r3] ;\
 
         .arm
 
@@ -118,6 +124,10 @@ boot_cpu:
         PRINT("- CPU ")
         mov   r0, r12
         bl    putn
+        PRINT(" booting -\r\n")
+#elif defined(EARLY_RAMOOPS_ADDRESS)
+        ldr   r11, =EARLY_RAMOOPS_ADDRESS
+        PRINT("- CPU ")
         PRINT(" booting -\r\n")
 #endif
         /* Secondary CPUs doesn't have machine ID
@@ -279,12 +289,14 @@ cpu_init_done:
         strd  r2, r3, [r4, #24]      /* Map 4th page in slot 3 */
 
         /* Now set up the second-level entries */
-        orr   r2, r9, #PT_UPPER(MEM)
+        lsr   r2, r9, #21
+        lsl   r2, r2, #21
+        orr   r2, r2, #PT_UPPER(MEM)
         orr   r2, r2, #PT_LOWER(MEM) /* r2:r3 := 2MB normal map of Xen */
         mov   r4, r9, lsr #18        /* Slot for paddr(start) */
         strd  r2, r3, [r1, r4]       /* Map Xen there */
         ldr   r4, =start
-        lsr   r4, #18                /* Slot for vaddr(start) */
+        lsr   r4, r4, #18            /* Slot for vaddr(start) */
         strd  r2, r3, [r1, r4]       /* Map Xen there too */
 
         /* xen_fixmap pagetable */

@@ -12,7 +12,7 @@
 
 #include <xen/config.h>
 
-#ifdef EARLY_PRINTK
+#if defined(EARLY_PRINTK) || defined(EARLY_RAMOOPS_ADDRESS)
 
 void early_printk(const char *fmt, ...)
     __attribute__((format (printf, 1, 2)));

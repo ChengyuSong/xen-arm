@@ -28,6 +28,9 @@
 #include <asm/div64.h>
 #include <xen/hypercall.h> /* for do_console_io */
 
+extern void early_vprintk(const char *fmt, va_list args);
+extern void early_printk(const char *fmt, ...);
+
 /* console: comma-separated list of console outputs. */
 static char __initdata opt_console[30] = OPT_CONSOLE_STR;
 string_param("console", opt_console);
@@ -266,6 +269,9 @@ void console_giveback(int id)
 
 static void sercon_puts(const char *s)
 {
+#ifdef EARLY_RAMOOPS_ADDRESS
+    printk("%s", s);
+#endif
     if ( serial_steal_fn != NULL )
         (*serial_steal_fn)(s);
     else
@@ -537,6 +543,7 @@ void printk(const char *fmt, ...)
     local_irq_save(flags);
     spin_lock_recursive(&console_lock);
 
+    if (0) {
     va_start(args, fmt);
     (void)vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);        
@@ -570,6 +577,11 @@ void printk(const char *fmt, ...)
             __putstr(p);
         }
         start_of_line = 0;
+    }
+    } else {
+    va_start(args, fmt);
+    early_vprintk(fmt, args);
+    va_end(args);
     }
 
     spin_unlock_recursive(&console_lock);
@@ -1026,7 +1038,9 @@ void panic(const char *fmt, ...)
 
 void __bug(char *file, int line)
 {
+#ifndef EARLY_RAMOOPS_ADDRESS
     console_start_sync();
+#endif
     printk("Xen BUG at %s:%d\n", file, line);
     dump_execution_state();
     panic("Xen BUG at %s:%d\n", file, line);

@@ -36,18 +36,23 @@
         orr   \rd, \rd, #(0x7<<8)
         str   \rd, [\rc, #0x558]
 
-        mov   \rc, #(100000000 / EARLY_PRINTK_BAUD % 16)
+        /*mov   \rc, #(100000000 / EARLY_PRINTK_BAUD % 16)*/
+        mov   \rc, #0xb
         str   \rc, [\rb, #UFRACVAL]     /* -> UFRACVAL (Baud divisor fraction) */
-        mov   \rc, #(100000000 / EARLY_PRINTK_BAUD / 16 - 1)
+        /*mov   \rc, #(100000000 / EARLY_PRINTK_BAUD / 16 - 1)*/
+        mov   \rc, #0x21
         str   \rc, [\rb, #UBRDIV]       /* -> UBRDIV (Baud divisor integer) */
         mov   \rc, #3                   /* 8n1 */
         str   \rc, [\rb, #ULCON]        /* -> (Line control) */
-        ldr   \rc, =UCON_TX_IRQ         /* TX IRQMODE */
+        ldr   \rc, =0x3c5 /*UCON_TX_IRQ*/         /* TX IRQMODE */
         str   \rc, [\rb, #UCON]         /* -> (Control Register) */
-        mov   \rc, #0x0
+        /*mov   \rc, #0x0*/
+        ldr   \rc, =0x111
         str   \rc, [\rb, #UFCON]        /* disable FIFO */
         mov   \rc, #0x0
         str   \rc, [\rb, #UMCON]        /* no auto flow control */
+        mov   \rc, #0x4f
+        str   \rc, [\rb, #0x20]
 .endm
 
 /* Exynos 5 UART wait UART to be ready to transmit

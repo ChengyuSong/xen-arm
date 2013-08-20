@@ -19,6 +19,8 @@
 
 #include <asm/config.h>
 
+#ifndef EARLY_RAMOOPS_ADDRESS
+
 #ifdef EARLY_PRINTK_INC
 #include EARLY_PRINTK_INC
 #endif
@@ -38,6 +40,8 @@ early_flush:
         ldr   r1, =FIXMAP_ADDR(FIXMAP_CONSOLE)  /* r1 := VA UART base address */
         early_uart_ready r1, r2
         mov   pc, lr
+
+#endif
 
 /*
  * Local variables:

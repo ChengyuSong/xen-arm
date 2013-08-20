@@ -26,6 +26,9 @@
 /* Arndale machine ID */
 #define MACH_TYPE_SMDK5250          3774
 
+/* Adonis machine ID */
+#define MACH_TYPE_SMDK5410          9999
+
 #endif /* __ASSEMBLY__ */
 
 #endif /* __ASM_ARM_PLATFORMS_EXYNOS5_H */

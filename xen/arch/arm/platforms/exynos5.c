@@ -26,6 +26,17 @@
 #include <asm/platforms/exynos5.h>
 #include <asm/platform.h>
 
+extern unsigned int opt_dom0_max_vcpus;
+
+static int exynos5_init(void)
+{
+    /* pin all cpus to dom0 */
+    opt_dom0_vcpus_pin = 1;
+    opt_dom0_max_vcpus = 4;
+
+    return 0;
+}
+
 static int exynos5_init_time(void)
 {
     uint32_t reg;
@@ -89,11 +100,13 @@ static uint32_t exynos5_quirks(void)
 static const char const *exynos5_dt_compat[] __initdata =
 {
     "samsung,exynos5250",
+    "samsung,exynos5410",
     NULL
 };
 
 PLATFORM_START(exynos5, "SAMSUNG EXYNOS5")
     .compatible = exynos5_dt_compat,
+    .init = exynos5_init,
     .init_time = exynos5_init_time,
     .specific_mapping = exynos5_specific_mapping,
     .reset = exynos5_reset,

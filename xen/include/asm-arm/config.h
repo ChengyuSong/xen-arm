@@ -141,6 +141,9 @@ extern unsigned long frametable_virt_end;
 #define watchdog_disable() ((void)0)
 #define watchdog_enable()  ((void)0)
 
+#define HACKED_IMAGE
+//#define EARLY_RAMOOPS_ADDRESS 0x41f00000
+
 #ifdef __ASSEMBLY__
 /* Board-specific: regs base address for the GIC
  * Theses constants are only intend to be used in assembly file

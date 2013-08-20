@@ -14,12 +14,35 @@
 #include <xen/stdarg.h>
 #include <xen/string.h>
 #include <asm/early_printk.h>
+#include <xen/mm.h>
 
 void early_putch(char c);
 void early_flush(void);
 
 /* Early printk buffer */
-static char __initdata buf[512];
+static char __initdata buf[1024];
+
+#ifdef EARLY_RAMOOPS_ADDRESS
+void __init early_putch(char c)
+{
+    static uint32_t rammops_offset = 0;
+    volatile char *r;
+    static uint32_t pfn = EARLY_RAMOOPS_ADDRESS >> PAGE_SHIFT;
+
+    r = (char *)(FIXMAP_ADDR(FIXMAP_CONSOLE) + rammops_offset);
+    *r = c;
+    rammops_offset += sizeof(char);
+    if (rammops_offset >= PAGE_SIZE) {
+        clear_fixmap(FIXMAP_CONSOLE);
+        if (pfn >= (EARLY_RAMOOPS_ADDRESS + 5 * 0x20000 - 1) >> PAGE_SHIFT)
+            pfn = (EARLY_RAMOOPS_ADDRESS >> PAGE_SHIFT) - 1;
+        set_fixmap(FIXMAP_CONSOLE, ++pfn, DEV_SHARED);
+        rammops_offset = 0;
+    }
+}
+
+void __init early_flush(void) {}
+#endif
 
 static void __init early_puts(const char *s)
 {
@@ -31,7 +54,7 @@ static void __init early_puts(const char *s)
     }
 }
 
-static void __init early_vprintk(const char *fmt, va_list args)
+void __init early_vprintk(const char *fmt, va_list args)
 {
     vsnprintf(buf, sizeof(buf), fmt, args);
     early_puts(buf);
