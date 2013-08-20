@@ -247,6 +247,11 @@ static paddr_t __init get_xen_paddr(void)
 
     min_size = (_end - _start + (XEN_PADDR_ALIGN-1)) & ~(XEN_PADDR_ALIGN-1);
 
+#ifdef ADONIS_5410
+    // XXX: bfe00000 is reserved for TIMA
+    mi->bank[0].size -= 0x200000;
+#endif
+
     /* Find the highest bank with enough space. */
     for ( i = 0; i < mi->nr_banks; i++ )
     {
@@ -511,7 +516,10 @@ void __init start_xen(unsigned long boot_phys_offset,
                       unsigned long cpuid)
 {
     size_t fdt_size;
-    int cpus, i;
+    int cpus;
+#ifndef ADONIS_5410
+    int i;
+#endif
 
     setup_cache();
 
@@ -552,7 +560,9 @@ void __init start_xen(unsigned long boot_phys_offset,
     init_xen_time();
 
     gic_init();
+#ifndef ADONIS_5410
     make_cpus_ready(cpus, boot_phys_offset);
+#endif
 
     set_current((struct vcpu *)0xfffff000); /* debug sanity */
     idle_vcpu[0] = current;
@@ -592,6 +602,7 @@ void __init start_xen(unsigned long boot_phys_offset,
 
     do_presmp_initcalls();
 
+#ifndef ADONIS_5410
     for_each_present_cpu ( i )
     {
         if ( (num_online_cpus() < cpus) && !cpu_online(i) )
@@ -601,6 +612,7 @@ void __init start_xen(unsigned long boot_phys_offset,
                 printk("Failed to bring up CPU %u (error %d)\n", i, ret);
         }
     }
+#endif
 
     printk("Brought up %ld CPUs\n", (long)num_online_cpus());
     /* TODO: smp_cpus_done(); */

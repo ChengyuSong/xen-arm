@@ -135,6 +135,10 @@ int __init init_xen_time(void)
         panic("CPU does not support the Generic Timer v1 interface.\n");
 
     cpu_khz = READ_SYSREG32(CNTFRQ_EL0) / 1000;
+#ifdef ADONIS_5410
+    if (cpu_khz == 0)
+        cpu_khz = 24 * 1000; //24MHz
+#endif
 
     boot_count = READ_SYSREG64(CNTPCT_EL0);
     printk("Using generic timer at %lu KHz\n", cpu_khz);

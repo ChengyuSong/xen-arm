@@ -57,6 +57,14 @@ void guest_physmap_remove_page(struct domain *d,
 
 unsigned long gmfn_to_mfn(struct domain *d, unsigned long gpfn);
 
+/* Change stage 2 memory access permission */
+#define P2M_PROT_NONE   0x0
+#define P2M_PROT_READ   0x1
+#define P2M_PROT_WRITE  0x2
+#define P2M_PROT_EXEC   0x4
+
+int p2m_protect_ram(struct domain *d, paddr_t start, paddr_t end, int prot);
+
 /*
  * Populate-on-demand
  */

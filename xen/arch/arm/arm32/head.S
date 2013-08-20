@@ -82,8 +82,25 @@ start:
 past_zImage:
         cpsid aif                    /* Disable all interrupts */
 
+#ifdef ADONIS_5410
+        /* Invalidate L1 I/D */
+        mov   r0, #0                   /* set up for MCR */
+        mcr   CP32(r0, TLBIALL)        /* invalidate TLBs */
+        mcr   CP32(r0, ICIALLU)        /* invalidate icache */
+
+        /* Disable stage 1 translation */
+        mrc   CP32(r0, SCTLR)
+        bic   r0, r0, #0x00000005
+        bic   r0, r0, #0x00002000
+        mcr   CP32(r0, SCTLR)
+#endif
+
         /* Save the bootloader arguments in less-clobberable registers */
-        mov   r5, r1                 /* r5: ARM-linux machine type */
+#ifndef ADONIS_5410
+        mov   r5, r1                 /* r5: ARM-linux machine type */ 
+#else
+        ldr   r5, =MACH_TYPE_SMDK5250
+#endif
         mov   r8, r2                 /* r8 := DTB base address */
 
         /* Find out where we are */
@@ -105,7 +122,11 @@ past_zImage:
         tst   r0, #(1<<30)           /* Uniprocessor system? */
         bne   boot_cpu
         bics  r12, r0, #(0xff << 24) /* Mask out flags to get CPU ID */
+#ifndef ADONIS_5410
         beq   boot_cpu               /* If we're CPU 0, boot now */
+#else
+        b     boot_cpu
+#endif
 
         /* Non-boot CPUs wait here to be woken up one at a time. */
 1:      dsb
@@ -140,9 +161,11 @@ boot_cpu:
         streq r5, [r0]                  /* On boot CPU save machine ID */
         ldrne r5, [r0]                  /* If non boot cpu r5 := machine ID */
 
+#ifndef ADONIS_5410
         /* Wake up secondary cpus */
         teq   r12, #0
         bleq  kick_cpus
+#endif
 
         PRINT("- Machine ID ")
         mov   r0, r5
@@ -339,6 +362,7 @@ paging:
         teq   r12, #0
         beq   launch
 
+#ifndef ADONIS_5410
         /* Non-boot CPUs need to move on to the relocated pagetables */
         mov   r0, #0
         ldr   r4, =boot_ttbr         /* VA of HTTBR value stashed by CPU 0 */
@@ -364,6 +388,7 @@ paging:
         dsb
         mcr   CP32(r0, DCCMVAC)      /* flush D-Cache */
         dsb
+#endif
 
         /* Here, the non-boot CPUs must wait again -- they're now running on
          * the boot CPU's pagetables so it's safe for the boot CPU to

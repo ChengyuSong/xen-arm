@@ -18,7 +18,7 @@
 #include <xen/irq.h>
 #include "kernel.h"
 
-static unsigned int __initdata opt_dom0_max_vcpus;
+unsigned int __initdata opt_dom0_max_vcpus;
 integer_param("dom0_max_vcpus", opt_dom0_max_vcpus);
 
 #if defined(HACKED_IMAGE)
@@ -550,7 +550,11 @@ static void dtb_load(struct kernel_info *kinfo)
 int construct_dom0(struct domain *d)
 {
     struct kernel_info kinfo = {};
-    int rc, i, cpu;
+    int rc, i;
+#ifndef ADONIS_5410
+    int cpu;
+#endif
+    struct dt_irq irq = {};
 
     struct vcpu *v = d->vcpu[0];
     struct cpu_user_regs *regs; 
@@ -596,6 +600,56 @@ int construct_dom0(struct domain *d)
     if ( kinfo.check_overlap )
         kinfo.check_overlap(&kinfo);
 
+#ifdef ADONIS_5410
+    rc = map_mmio_regions(d, 0x000b0000, 0x0b0000 + 0x020000, 0x0b0000);
+    rc = map_mmio_regions(d, 0x03000000, 0x03830000, 0x03000000); // AUDSS
+    rc = map_mmio_regions(d, 0x03830000, 0x03870000, 0x03830000); // GPIO GPZ group
+    if ( rc < 0 )
+        panic("Failed to map mmio GPIO GPZ group\n");
+    
+    rc = map_mmio_regions(d, 0x02020000, 0x02074000, 0x02020000); // iRam
+    if ( rc < 0 )
+        panic("Failed to map mmio iRam\n");
+    
+    rc = map_mmio_regions(d, 0x10000000, 0x10480000, 0x10000000); // SFR region 1, avoid GIC
+    if ( rc < 0)
+        panic("Failed to map SFR region 1\n");
+    
+    rc = map_mmio_regions(d, 0x10490000, 0x20000000, 0x10490000); // SFR region 2, avoid GIC
+    if ( rc < 0 )
+        panic("Failed to map SFR region 2\n");
+
+    rc = p2m_protect_ram(d, 0x02073000, 0x02074000, P2M_PROT_READ | P2M_PROT_EXEC);
+    if ( rc < 0 )
+        panic("Failed to set the SYSRAM_NS to read only\n");
+
+    set_fixmap(FIXMAP_EXYNOS, 0x02073000 >> PAGE_SHIFT, DEV_SHARED);
+    set_fixmap(FIXMAP_S5P_PMU, 0x10042000 >> PAGE_SHIFT, DEV_SHARED);
+
+    //map_mmio_regions(d, 0x101c0000, 0x101cffff, 0x101c0000); // MCT
+    //map_mmio_regions(d, 0x12c00000, 0x12c0ffff, 0x12c00000); // uart0
+    //map_mmio_regions(d, 0x12c10000, 0x12c1ffff, 0x12c10000); // uart1
+    //map_mmio_regions(d, 0x12c20000, 0x12C2ffff, 0x12c20000); // uart2
+    //map_mmio_regions(d, 0x12c30000, 0x12C3ffff, 0x12c30000); // uart3
+    
+#define ADD_IRQ(num, name)  \
+    {irq.irq = num;         \
+    rc = gic_route_irq_to_guest(d, &irq, name);\
+    if ( rc < 0 )           \
+    printk("Failed to route irq (%d) to guest\n", irq.irq);}
+
+    irq.type = DT_IRQ_TYPE_NONE;
+
+    for (i = 64; i <= 855; i++) {
+        char name[] = "irqxxx";
+        name[sizeof(name)-3] = '0'+(i/100);
+        name[sizeof(name)-2] = '0'+(i/10);
+        name[sizeof(name)-1] = '0'+(i%10);
+        ADD_IRQ(i, name);
+    }
+#undef ADD_IRQ
+#endif
+
     /* The following loads use the domain's p2m */
     p2m_load_VTTBR(d);
 
@@ -603,6 +657,7 @@ int construct_dom0(struct domain *d)
     dtb_load(&kinfo);
 
 #ifdef HACKED_IMAGE
+#ifdef ADONIS_5410
     {
         void *p = map_domain_page(0x40000);
         uint32_t *q = p + 0x100;
@@ -612,6 +667,7 @@ int construct_dom0(struct domain *d)
         memmove(&q[13], &q[21], (11+0x8c+2) * sizeof(uint32_t));
         unmap_domain_page(p);
     }
+#endif
     xfree(kinfo.kernel_img);
 #endif
 
@@ -643,8 +699,13 @@ int construct_dom0(struct domain *d)
          *...
          */
         regs->r0 = 0; /* SBZ */
+#ifdef ADONIS_5410
+        regs->r1 = 9999; /* EXYNOS5410 */
+        regs->r2 = 0x40000100; /* FROM SBOOT */
+#else
         regs->r1 = 0xffffffff; /* We use DTB therefore no machine id */
         regs->r2 = kinfo.dtb_paddr;
+#endif
     }
 #ifdef CONFIG_ARM_64
     else
@@ -658,6 +719,7 @@ int construct_dom0(struct domain *d)
     }
 #endif
 
+#ifndef ADONIS_5410
     for ( i = 1, cpu = 0; i < d->max_vcpus; i++ )
     {
         cpu = cpumask_cycle(cpu, &cpu_online_map);
@@ -667,6 +729,7 @@ int construct_dom0(struct domain *d)
             break;
         }
     }
+#endif
 
     return 0;
 }

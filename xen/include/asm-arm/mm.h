@@ -327,6 +327,9 @@ static inline void put_page_and_type(struct page_info *page)
     put_page(page);
 }
 
+extern void map_temp_xen_11(void);
+extern void unmap_temp_xen_11(unsigned long cpuid);
+
 #endif /*  __ARCH_ARM_MM__ */
 /*
  * Local variables:

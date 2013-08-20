@@ -116,6 +116,8 @@
 #define FIXMAP_GICC1    4  /* Interrupt controller: CPU registers (first page) */
 #define FIXMAP_GICC2    5  /* Interrupt controller: CPU registers (second page) */
 #define FIXMAP_GICH     6  /* Interrupt controller: virtual interface control registers */
+#define FIXMAP_EXYNOS   7  /* Exynos5 sysram ns */
+#define FIXMAP_S5P_PMU  8  /* S5P PMU CORE CONFIGURE */
 
 #define PAGE_SHIFT              12
 
@@ -144,6 +146,7 @@ extern unsigned long frametable_virt_end;
 #define CONFIG_PAGEALLOC_MAX_ORDER 18
 #define HACKED_IMAGE
 //#define EARLY_RAMOOPS_ADDRESS 0x41f00000
+#define ADONIS_5410
 
 #ifdef __ASSEMBLY__
 /* Board-specific: regs base address for the GIC

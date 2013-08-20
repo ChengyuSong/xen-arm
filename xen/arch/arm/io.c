@@ -26,6 +26,7 @@ static const struct mmio_handler *const mmio_handlers[] =
 {
     &vgic_distr_mmio_handler,
     &vuart_mmio_handler,
+    &exynos5_sysram_ns_handler,
 };
 #define MMIO_HANDLER_NR ARRAY_SIZE(mmio_handlers)
 

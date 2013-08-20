@@ -42,6 +42,7 @@ struct mmio_handler {
 
 extern const struct mmio_handler vgic_distr_mmio_handler;
 extern const struct mmio_handler vuart_mmio_handler;
+extern const struct mmio_handler exynos5_sysram_ns_handler;
 
 extern int handle_mmio(mmio_info_t *info);
 

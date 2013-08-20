@@ -2,7 +2,8 @@ subdir-$(arm32) += arm32
 subdir-$(arm64) += arm64
 subdir-y += platforms
 
-obj-$(EARLY_PRINTK) += early_printk.o
+#obj-$(EARLY_PRINTK) += early_printk.o
+obj-y += early_printk.o
 obj-y += cpu.o
 obj-y += domain.o
 obj-y += psci.o
@@ -28,6 +29,7 @@ obj-y += traps.o
 obj-y += vgic.o
 obj-y += vtimer.o
 obj-y += vuart.o
+obj-y += exynos5_mmio.o
 obj-y += hvm.o
 obj-y += device.o
 

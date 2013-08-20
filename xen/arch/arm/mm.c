@@ -84,6 +84,8 @@ lpae_t xen_fixmap[LPAE_ENTRIES] __attribute__((__aligned__(4096)));
  * as appropriate. */
 static lpae_t xen_xenmap[LPAE_ENTRIES] __attribute__((__aligned__(4096)));
 
+/* Saved data for sleeping */
+static lpae_t sleep_saved_dommap[NR_CPUS];
 
 /* Non-boot CPUs use this to find the correct pagetables. */
 uint64_t boot_ttbr;
@@ -268,6 +270,60 @@ void unmap_domain_page(const void *va)
     ASSERT(map[slot].pt.avail != 0);
 
     map[slot].pt.avail--;
+
+    local_irq_restore(flags);
+}
+
+/* When CPU resumes from sleeping, we need a 1:1 mapping
+ * to enable switching between non-paging and paging */
+void map_temp_xen_11(void)
+{
+    /* xen ma falls into XEN_DOMHEAP va range */
+    lpae_t *map = this_cpu(xen_dommap); 
+    unsigned long xen_mfn = virt_to_mfn((void *)XEN_VIRT_START);
+    lpae_t pte;
+    unsigned long flags;
+    int slot;
+
+    local_irq_save(flags);
+
+    BUG_ON(xen_mfn & LPAE_ENTRY_MASK);
+    
+    slot = (xen_mfn >> LPAE_SHIFT) % DOMHEAP_ENTRIES;
+
+    pte = mfn_to_xen_entry(xen_mfn);
+
+    /* We need xen to be mapped executable, but the resuming code
+     * does not need to write permission before resuming paging
+     * so the (W xor X) property is not violated */
+    pte.pt.xn = 0;
+    pte.pt.ro = 1;
+
+    /* Save the current slot, in case it's used.
+     * As sleeping should immediately follows context saving,
+     * reusing the slot should be OK */
+    sleep_saved_dommap[smp_processor_id()] = map[slot];
+
+    write_pte(map + slot, pte);
+
+    local_irq_restore(flags);
+}
+
+void unmap_temp_xen_11(unsigned long cpuid)
+{
+    unsigned long flags;
+    lpae_t *map = this_cpu(xen_dommap);
+    unsigned long xen_mfn = virt_to_mfn((void *)XEN_VIRT_START);
+    lpae_t pte;
+    int slot;
+
+    local_irq_save(flags);
+
+    slot = (xen_mfn >> LPAE_SHIFT) % DOMHEAP_ENTRIES;
+
+    pte = sleep_saved_dommap[cpuid];
+
+    write_pte(map + slot, pte);
 
     local_irq_restore(flags);
 }

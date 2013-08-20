@@ -37,6 +37,8 @@ EXPORT_SYMBOL(cpu_online_map);
 cpumask_t cpu_possible_map;
 EXPORT_SYMBOL(cpu_possible_map);
 
+extern register_t exynos5_boot_addr;
+
 struct cpuinfo_arm cpu_data[NR_CPUS];
 
 /* Fake one node for now. See also include/asm-arm/numa.h */
@@ -137,6 +139,9 @@ void __cpuinit start_secondary(unsigned long boot_phys_offset,
                                unsigned long fdt_paddr,
                                unsigned long cpuid)
 {
+    struct vcpu *v;
+    struct cpu_user_regs *regs;
+
     memset(get_cpu_info(), 0, sizeof (struct cpu_info));
 
     /* TODO: handle boards where CPUIDs are not contiguous */
@@ -171,6 +176,29 @@ void __cpuinit start_secondary(unsigned long boot_phys_offset,
     /* Now report this CPU is up */
     cpumask_set_cpu(cpuid, &cpu_online_map);
     wmb();
+
+    /* Setup dom0 boot pc */
+    {
+        v = alloc_vcpu(dom0, cpuid, cpuid);
+        if (v == NULL) 
+        {
+            panic("Failed to allocate dom0 vcpu %lu on pcpu %lu\n", cpuid, cpuid);
+        }
+
+        p2m_load_VTTBR(dom0);
+
+        v->is_initialised = 1;
+        clear_bit(_VPF_down, &v->pause_flags);
+
+        regs = &v->arch.cpu_info->guest_cpu_user_regs;
+        memset(regs, 0, sizeof(*regs));
+        regs->pc = exynos5_boot_addr;
+        regs->cpsr = PSR_GUEST32_INIT;
+
+        printk("Guest secondary PC = 0x%08x\n", regs->pc);
+
+        vcpu_wake(v);
+    }
 
     local_irq_enable();
     local_abort_enable();
@@ -219,6 +247,8 @@ int __cpu_up(unsigned int cpu)
 {
     int rc;
 
+    map_temp_xen_11();
+
     rc = init_secondary_pagetables(cpu);
     if ( rc < 0 )
         return rc;
@@ -240,6 +270,8 @@ int __cpu_up(unsigned int cpu)
         cpu_relax();
         process_pending_softirqs();
     }
+
+    unmap_temp_xen_11(smp_processor_id());
 
     return 0;
 }

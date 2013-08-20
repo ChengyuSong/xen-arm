@@ -238,6 +238,97 @@ out:
     return rc;
 }
 
+int p2m_protect_ram(struct domain *d, paddr_t start, paddr_t end, int prot)
+{
+    int rc, flush;
+    struct p2m_domain *p2m = &d->arch.p2m;
+    lpae_t *first = NULL, *second = NULL, *third = NULL, pte;
+    paddr_t addr;
+    unsigned long cur_first_offset = ~0, cur_second_offset = ~0;
+
+    spin_lock(&p2m->lock);
+
+    /* XXX Don't actually handle 40 bit guest physical addresses */
+    BUG_ON(start & 0x8000000000ULL);
+    BUG_ON(end   & 0x8000000000ULL);
+
+    first = __map_domain_page(p2m->first_level);
+
+    for(addr = start; addr < end; addr += PAGE_SIZE)
+    {
+        if ( !first[first_table_offset(addr)].p2m.valid )
+        {
+            rc = -EINVAL;
+            goto out;
+        }
+
+        BUG_ON(!first[first_table_offset(addr)].p2m.valid);
+
+        if ( cur_first_offset != first_table_offset(addr) )
+        {
+            if (second) unmap_domain_page(second);
+            second = map_domain_page(first[first_table_offset(addr)].p2m.base);
+            cur_first_offset = first_table_offset(addr);
+        }
+
+        if ( !second[second_table_offset(addr)].p2m.valid )
+        {
+            rc = -EINVAL;
+            goto out;
+        }
+
+        BUG_ON(!second[second_table_offset(addr)].p2m.valid);
+
+        if ( cur_second_offset != second_table_offset(addr) )
+        {
+            if (third) unmap_domain_page(third);
+            third = map_domain_page(second[second_table_offset(addr)].p2m.base);
+            cur_second_offset = second_table_offset(addr);
+        }
+
+        if ( !third[third_table_offset(addr)].p2m.valid )
+        {
+            rc = -EINVAL;
+            goto out;
+        }
+
+        pte = third[third_table_offset(addr)];
+
+        if ( prot & P2M_PROT_READ )
+            pte.p2m.read = 1;
+        else
+            pte.p2m.read = 0;
+
+        if ( prot & P2M_PROT_WRITE )
+            pte.p2m.write = 1;
+        else
+            pte.p2m.write = 0;
+
+        if ( prot & P2M_PROT_EXEC )
+            pte.p2m.xn = 0;
+        else
+            pte.p2m.xn = 1;
+
+        flush = (pte.bits != third[third_table_offset(addr)].bits);
+
+        write_pte(&third[third_table_offset(addr)], pte);
+
+        if ( flush )
+            flush_tlb_all_local();
+    }
+
+    rc = 0;
+
+out:
+    if (third) unmap_domain_page(third);
+    if (second) unmap_domain_page(second);
+    if (first) unmap_domain_page(first);
+
+    spin_unlock(&p2m->lock);
+
+    return rc;
+}
+
 int p2m_populate_ram(struct domain *d,
                      paddr_t start,
                      paddr_t end)
