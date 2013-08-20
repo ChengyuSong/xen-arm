@@ -101,6 +101,7 @@
 #define ID_ISAR3        p15,0,c0,c2,3   /* ISA Feature Register 3 */
 #define ID_ISAR4        p15,0,c0,c2,4   /* ISA Feature Register 4 */
 #define ID_ISAR5        p15,0,c0,c2,5   /* ISA Feature Register 5 */
+#define CTR             p15,0,c0,c0,1   /* Cache Type Register */
 #define CCSIDR          p15,1,c0,c0,0   /* Cache Size ID Registers */
 #define CLIDR           p15,1,c0,c0,1   /* Cache Level ID Register */
 #define CSSELR          p15,2,c0,c0,0   /* Cache Size Selection Register */
@@ -166,6 +167,7 @@
 #define DCCMVAC         p15,0,c7,c10,1  /* Clean data or unified cache line by MVA to PoC */
 #define DCCSW           p15,0,c7,c10,2  /* Clean data cache line by set/way */
 #define DCCMVAU         p15,0,c7,c11,1  /* Clean data cache line by MVA to PoU */
+#define DCCIMVAC        p15,0,c7,c14,1  /* Clean and invalidate data cache line by MVA */
 #define DCCISW          p15,0,c7,c14,2  /* Clean and invalidate data cache line by set/way */
 #define ATS1HR          p15,4,c7,c8,0   /* Address Translation Stage 1 Hyp. Read */
 #define ATS1HW          p15,4,c7,c8,1   /* Address Translation Stage 1 Hyp. Write */

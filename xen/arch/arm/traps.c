@@ -39,6 +39,7 @@
 #include "io.h"
 #include "vtimer.h"
 #include <asm/gic.h>
+#include "smc.h"
 
 /* The base of the stack must always be double-word aligned, which means
  * that both the kernel half of struct cpu_user_regs (which is pushed in
@@ -1403,6 +1404,12 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         do_cp15_64(regs, hsr);
         break;
     case HSR_EC_SMC32:
+        if ( handle_smc(regs, hsr.len) )
+        {
+            /* PC is adjusted by the handler */
+            break;
+        }
+        /* Treat unhandled SMC call as undef inst */
         inject_undef32_exception(regs);
         break;
     case HSR_EC_HVC32:

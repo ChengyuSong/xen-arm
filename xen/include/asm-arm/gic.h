@@ -172,6 +172,10 @@ extern void gic_disable_cpu(void);
 /* setup the gic virtual interface for a guest */
 extern int gicv_setup(struct domain *d);
 
+/* Power management */
+extern void gic_cpu_save(void);
+extern void gic_cpu_restore(void);
+
 /* Context switch */
 extern void gic_save_state(struct vcpu *v);
 extern void gic_restore_state(struct vcpu *v);

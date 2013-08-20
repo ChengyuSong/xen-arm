@@ -32,6 +32,8 @@ obj-y += vuart.o
 obj-y += exynos5_mmio.o
 obj-y += hvm.o
 obj-y += device.o
+obj-y += smc.o
+obj-y += suspend.o
 
 #obj-bin-y += ....o
 

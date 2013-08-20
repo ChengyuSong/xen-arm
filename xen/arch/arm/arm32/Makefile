@@ -8,4 +8,6 @@ obj-y += traps.o
 obj-y += domain.o
 obj-y += vfp.o
 
+obj-y += sleep.o
+
 obj-$(EARLY_PRINTK) += debug.o

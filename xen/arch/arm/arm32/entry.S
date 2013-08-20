@@ -135,6 +135,20 @@ ENTRY(__context_switch)
         add     r4, r1, #VCPU_arch_saved_context
         ldmia   r4, {r4 - sl, fp, sp, pc}       /* Load registers and return */
 
+ENTRY(forward_smc)
+        stmfd   sp!, {r1 - r5, lr}
+        mov     r5, r0
+        ldr     r0, [r5, #0x0]
+        ldr     r1, [r5, #0x4]
+        ldr     r2, [r5, #0x8]
+        ldr     r3, [r5, #0xc]
+        smc     0
+        str     r0, [r5, #0x0]
+        str     r1, [r5, #0x4]
+        str     r2, [r5, #0x8]
+        str     r3, [r5, #0xc]
+        ldmfd   sp!, {r1 - r5, pc}
+
 /*
  * Local variables:
  * mode: ASM

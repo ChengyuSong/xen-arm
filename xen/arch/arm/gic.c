@@ -55,6 +55,12 @@ static irq_desc_t irq_desc[NR_IRQS];
 static DEFINE_PER_CPU(irq_desc_t[NR_LOCAL_IRQS], local_irq_desc);
 static DEFINE_PER_CPU(uint64_t, lr_mask);
 
+//static uint32_t saved_spi_enable[NR_IRQS];
+//static uint32_t saved_spi_conf[NR_IRQS];
+//static uint32_t saved_spi_target[NR_IRQS];
+static DEFINE_PER_CPU(uint32_t[DIV_ROUND_UP(NR_LOCAL_IRQS,32)], saved_ppi_enable);
+static DEFINE_PER_CPU(uint32_t[DIV_ROUND_UP(NR_LOCAL_IRQS,16)], saved_ppi_conf);
+
 static unsigned nr_lrs;
 
 unsigned int gic_number_lines(void)
@@ -66,6 +72,49 @@ irq_desc_t *__irq_to_desc(int irq)
 {
     if (irq < NR_LOCAL_IRQS) return &this_cpu(local_irq_desc)[irq];
     return &irq_desc[irq-NR_LOCAL_IRQS];
+}
+
+void gic_cpu_save(void)
+{
+    int i;
+    ASSERT(!local_irq_is_enabled());
+
+    /* save ppi */
+    for ( i = 0; i < DIV_ROUND_UP(NR_LOCAL_IRQS,32); i++ )
+    {
+        this_cpu(saved_ppi_enable)[i] = GICD[GICD_ISENABLER + i];
+        //GICD[GICD_ICENABLER + i] = this_cpu(saved_ppi_enable)[i];
+    }
+
+    for ( i = 0; i < DIV_ROUND_UP(NR_LOCAL_IRQS,16); i++ )
+        this_cpu(saved_ppi_conf)[i] = GICD[GICD_ICFGR + i];
+
+    /* also save current vcpu's state */
+    gic_save_state(current);
+}
+
+void gic_cpu_restore(void)
+{
+    int i;
+    
+    for ( i = 0; i < DIV_ROUND_UP(NR_LOCAL_IRQS,32); i++ )
+        GICD[GICD_ISENABLER + i] = this_cpu(saved_ppi_enable)[i];
+
+    for ( i = 0; i < DIV_ROUND_UP(NR_LOCAL_IRQS,16); i++ )
+        GICD[GICD_ICFGR + i] = this_cpu(saved_ppi_conf)[i];
+
+    for ( i = 0; i < DIV_ROUND_UP(NR_LOCAL_IRQS,4); i++ )
+        GICD[GICD_IPRIORITYR + i] = 0xa0a0a0a0;
+
+    GICC[GICC_PMR] = 0xff;
+    GICC[GICC_BPR] = 0;
+    GICC[GICC_CTLR] = GICC_CTL_ENABLE;
+
+    if (GICD[GICD_CTLR] != GICD_CTL_ENABLE)
+        panic("Distributor is disabled!\n");
+
+    /* restore current vcpu's state */
+    gic_restore_state(current);
 }
 
 void gic_save_state(struct vcpu *v)
