@@ -75,7 +75,7 @@ start:
         b     past_zImage
 
         .word ZIMAGE_MAGIC_NUMBER    /* Magic numbers to help the loader */
-        .word 0x00000000             /* absolute load/run zImage address or
+        .word 0x00000042             /* absolute load/run zImage address or
                                       * 0 for PiC */
         .word (_end - start)         /* zImage end address */
 
