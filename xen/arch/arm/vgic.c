@@ -576,6 +576,11 @@ static int vgic_distr_mmio_write(struct vcpu *v, mmio_info_t *info)
 
     case GICD_CPENDSGIR ... GICD_CPENDSGIRN:
         if ( dabt.size != 0 && dabt.size != 2 ) goto bad_width;
+
+        /* writes 0 has no effect */
+        if ( *r == 0 )
+            return 1;
+
         printk("vGICD: unhandled %s write %#"PRIregister" to ICPENDSGIR%d\n",
                dabt.size ? "word" : "byte", *r, gicd_reg - GICD_CPENDSGIR);
         return 0;
@@ -664,7 +669,7 @@ void vgic_clear_pending_irqs(struct vcpu *v)
 void vgic_vcpu_inject_irq(struct vcpu *v, unsigned int irq, int virtual)
 {
     int idx = irq >> 2, byte = irq & 0x3;
-    uint8_t priority;
+    uint8_t priority, mask;
     struct vgic_irq_rank *rank = vgic_irq_rank(v, 8, idx);
     struct pending_irq *iter, *n = irq_to_pending(v, irq);
     unsigned long flags;
@@ -674,6 +679,15 @@ void vgic_vcpu_inject_irq(struct vcpu *v, unsigned int irq, int virtual)
 
     /* vcpu offline or irq already pending */
     if (test_bit(_VPF_down, &v->pause_flags) || !list_empty(&n->inflight))
+    {
+        spin_unlock_irqrestore(&v->arch.vgic.lock, flags);
+        return;
+    }
+
+    mask = byte_read(rank->itargets[REG_RANK_INDEX(8, idx)], 0, byte);
+
+    /* check the target list for non-virtual irq */
+    if ((irq >= 32) && ((1u << v->vcpu_id) & mask) == 0)
     {
         spin_unlock_irqrestore(&v->arch.vgic.lock, flags);
         return;

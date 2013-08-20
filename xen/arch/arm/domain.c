@@ -139,7 +139,7 @@ static void ctxt_switch_to(struct vcpu *n)
     p2m_load_VTTBR(n->domain);
     isb();
 
-    WRITE_SYSREG32(n->domain->arch.vpidr, VPIDR_EL2);
+    WRITE_SYSREG(n->arch.vpidr, VPIDR_EL2);
     WRITE_SYSREG(n->arch.vmpidr, VMPIDR_EL2);
 
     /* VGIC */
@@ -462,11 +462,16 @@ int vcpu_initialise(struct vcpu *v)
         return rc;
 
     v->arch.sctlr = SCTLR_BASE;
+
+    /* Default the virtual ID to match the physical */
+    v->arch.vpidr = READ_SYSREG32(MIDR_EL1);
+
     /*
      * By default exposes an SMP system with AFF0 set to the VCPU ID
      * TODO: Handle multi-threading processor and cluster
      */
     v->arch.vmpidr = MPIDR_SMP | (v->vcpu_id << MPIDR_AFF0_SHIFT);
+    v->arch.vmpidr |= READ_SYSREG32(MPIDR) & MPIDR_AFF1_SHIFT;
 
     v->arch.actlr = READ_SYSREG32(ACTLR_EL1);
 
@@ -505,9 +510,6 @@ int arch_domain_create(struct domain *d, unsigned int domcr_flags)
 
     if ( (d->shared_info = alloc_xenheap_pages(0, 0)) == NULL )
         goto fail;
-
-    /* Default the virtual ID to match the physical */
-    d->arch.vpidr = boot_cpu_data.midr.bits;
 
     clear_page(d->shared_info);
     share_xen_page_with_guest(

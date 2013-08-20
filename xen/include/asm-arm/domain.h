@@ -70,9 +70,6 @@ struct arch_domain
     struct hvm_domain hvm_domain;
     xen_pfn_t *grant_table_gpfn;
 
-    /* Virtual CPUID */
-    uint32_t vpidr;
-
     struct {
         uint64_t offset;
     } phys_timer_base;
@@ -198,7 +195,10 @@ struct arch_vcpu
 
     /* CP 15 */
     uint32_t csselr;
-    register_t vmpidr;
+    
+    /* Virtual CPUID */
+    uint32_t vpidr;
+    uint32_t vmpidr;
 
     uint32_t gic_hcr, gic_vmcr, gic_apr;
     uint32_t gic_lr[64];

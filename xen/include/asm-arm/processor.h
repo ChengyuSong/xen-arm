@@ -12,6 +12,8 @@
 #define MPIDR_SMP           (1 << 31)
 #define MPIDR_AFF0_SHIFT    (0)
 #define MPIDR_AFF0_MASK     (0xff << MPIDR_AFF0_SHIFT)
+#define MPIDR_AFF1_SHIFT    (8)
+#define MPIDR_AFF1_MASK     (0xff << MPIDR_AFF1_SHIFT)
 
 /* TTBCR Translation Table Base Control Register */
 #define TTBCR_EAE    0x80000000
