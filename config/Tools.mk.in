@@ -47,14 +47,15 @@ XENSTAT_XENTOP      := @monitors@
 LIBXENAPI_BINDINGS  := @xenapi@
 OCAML_TOOLS         := @ocamltools@
 FLASK_POLICY        := @xsmpolicy@
-CONFIG_MINITERM     := @miniterm@
-CONFIG_LOMOUNT      := @lomount@
 CONFIG_OVMF         := @ovmf@
 CONFIG_ROMBIOS      := @rombios@
 CONFIG_SEABIOS      := @seabios@
+CONFIG_QEMU_TRAD    := @qemu_traditional@
+CONFIG_QEMU_XEN     := @qemu_xen@
+CONFIG_XEND         := @xend@
+CONFIG_BLKTAP1      := @blktap1@
 
 #System options
-CONFIG_SYSTEM_LIBAIO:= @system_aio@
 ZLIB                := @zlib@
 CONFIG_LIBICONV     := @libiconv@
 CONFIG_GCRYPT       := @libgcrypt@
